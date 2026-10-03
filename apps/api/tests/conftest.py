@@ -27,7 +27,8 @@ async def test_engine() -> AsyncIterator[AsyncEngine]:
     async with engine.begin() as connection:
         await connection.execute(
             text(
-                "TRUNCATE TABLE usage_events, project_api_keys, projects, "
+                "TRUNCATE TABLE event_costs, model_prices, usage_events, "
+                "project_api_keys, projects, "
                 "sessions, memberships, organizations, users CASCADE"
             )
         )

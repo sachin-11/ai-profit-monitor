@@ -11,12 +11,15 @@ from typing import Any
 from sqlalchemy import Select, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.config import Settings
 from app.core.errors import ApiError
+from app.models.event_cost import EventCost
 from app.models.project import Project
 from app.models.usage_event import EventStatus, UsageEvent
 from app.schemas.usage_event import IngestResult, UsageEventCreate
+from app.services.costs import create_event_costs
 
 
 def event_fingerprint(event: UsageEventCreate) -> str:
@@ -70,7 +73,7 @@ async def ingest_events(
     try:
         inserted_rows = await db.execute(
             insert(UsageEvent)
-            .values(values)
+            .values(sorted(values, key=lambda value: value["client_event_id"]))
             .on_conflict_do_nothing(constraint="uq_usage_events_project_client_id")
             .returning(UsageEvent.client_event_id)
         )
@@ -85,6 +88,11 @@ async def ingest_events(
         for client_event_id, (_, fingerprint) in unique.items():
             if stored[client_event_id].payload_fingerprint != fingerprint:
                 raise ApiError(409, "duplicate_event_conflict", "Event ID has a different payload")
+        await create_event_costs(
+            db,
+            [stored[client_id] for client_id in created_ids],
+            settings.cost_currency,
+        )
         seen_ids: set[str] = set()
         results = []
         for event in events:
@@ -149,10 +157,16 @@ async def query_events(
     if end - start > timedelta(days=settings.event_max_query_days):
         raise ApiError(422, "invalid_date_range", "Event date range exceeds the configured maximum")
 
-    statement: Select[tuple[UsageEvent]] = select(UsageEvent).where(
-        UsageEvent.project_id == project_id,
-        UsageEvent.occurred_at >= start,
-        UsageEvent.occurred_at <= end,
+    statement: Select[tuple[UsageEvent]] = (
+        select(UsageEvent)
+        .options(
+            joinedload(UsageEvent.cost).joinedload(EventCost.model_price),
+        )
+        .where(
+            UsageEvent.project_id == project_id,
+            UsageEvent.occurred_at >= start,
+            UsageEvent.occurred_at <= end,
+        )
     )
     if provider is not None:
         statement = statement.where(UsageEvent.provider == provider)
@@ -180,7 +194,9 @@ async def query_events(
 
 async def get_event(db: AsyncSession, *, project_id: uuid.UUID, event_id: uuid.UUID) -> UsageEvent:
     event = await db.scalar(
-        select(UsageEvent).where(UsageEvent.id == event_id, UsageEvent.project_id == project_id)
+        select(UsageEvent)
+        .options(joinedload(UsageEvent.cost).joinedload(EventCost.model_price))
+        .where(UsageEvent.id == event_id, UsageEvent.project_id == project_id)
     )
     if event is None:
         raise ApiError(404, "not_found", "Event not found")

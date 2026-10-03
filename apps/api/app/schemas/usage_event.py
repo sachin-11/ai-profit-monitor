@@ -5,9 +5,10 @@ import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.usage_event import EventStatus
+from app.schemas.pricing import CostPublic
 
 MAX_TOKENS = 1_000_000_000
 FORBIDDEN_TAG_NAMES = {
@@ -29,7 +30,7 @@ class UsageEventCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_event_id: str = Field(min_length=1, max_length=128)
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     provider: str = Field(min_length=2, max_length=40)
     model: str = Field(min_length=1, max_length=120)
     customer_external_id: str | None = Field(default=None, max_length=128)
@@ -80,6 +81,15 @@ class UsageEventCreate(BaseModel):
     def normalize_time(cls, value: datetime) -> datetime:
         return value.astimezone(UTC)
 
+    @model_validator(mode="after")
+    def normalized_token_subsets(self) -> UsageEventCreate:
+        if self.schema_version == 2:
+            if self.cached_input_tokens > self.input_tokens:
+                raise ValueError("cached_input_tokens must be a subset of input_tokens")
+            if self.reasoning_tokens > self.output_tokens:
+                raise ValueError("reasoning_tokens must be a subset of output_tokens")
+        return self
+
 
 class UsageEventBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -129,6 +139,7 @@ class UsageEventPublic(BaseModel):
     occurred_at: datetime
     received_at: datetime
     created_at: datetime
+    cost: CostPublic | None
 
 
 class EventListData(BaseModel):

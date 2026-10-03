@@ -1,0 +1,20 @@
+[
+  {
+    "provider": "example",
+    "model": "text-demo-v1",
+    "currency": "USD",
+    "input_price_per_million": "2.000000000000",
+    "cached_input_price_per_million": "0.500000000000",
+    "output_price_per_million": "4.000000000000",
+    "reasoning_price_per_million": "6.000000000000",
+    "reasoning_billing_mode": "separately_priced",
+    "effective_from": "2026-01-01T00:00:00Z",
+    "effective_to": null,
+    "source_name": "Synthetic local demonstration; not production provider pricing",
+    "source_url": null,
+    "source_retrieved_at": null,
+    "catalog_version": "synthetic-demo-v1",
+    "notes": "Fictional model and rates for testing only. Never use these rates for real providers.",
+    "is_active": true
+  }
+]

@@ -1,6 +1,6 @@
 # AI Profit Monitor
 
-AI Profit Monitor is a production-oriented foundation for tracking AI API usage by customer and feature. Module 1 provides FastAPI, Next.js, PostgreSQL, migrations, and health checks. Module 2 adds password authentication, revocable sessions, and tenant-safe organizations. Module 3 adds projects, project API keys, and privacy-conscious usage-event ingestion. Monetary cost and analytics are not implemented yet.
+AI Profit Monitor is a production-oriented foundation for tracking AI API usage by customer and feature. Module 1 provides FastAPI, Next.js, PostgreSQL, migrations, and health checks. Module 2 adds password authentication, revocable sessions, and tenant-safe organizations. Module 3 adds projects, project API keys, and privacy-conscious usage-event ingestion. Module 4 adds versioned text-model pricing and deterministic Decimal cost calculation. Revenue, profitability, and analytics dashboards remain deferred.
 
 ## Prerequisites
 
@@ -76,22 +76,43 @@ The key creation response displays the full key exactly once. Copy it into your 
 Single-event ingestion (replace the placeholder key and use a current UTC timestamp):
 
 ```powershell
-curl.exe -X POST http://localhost:8000/api/v1/ingest/events -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"client_event_id":"event-123","schema_version":1,"provider":"openai","model":"gpt-4o-mini","feature":"assistant","status":"success","input_tokens":42,"output_tokens":12,"occurred_at":"2026-10-03T10:00:00Z"}'
+curl.exe -X POST http://localhost:8000/api/v1/ingest/events -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"client_event_id":"event-123","schema_version":2,"provider":"openai","model":"gpt-4o-mini","feature":"assistant","status":"success","input_tokens":42,"output_tokens":12,"occurred_at":"2026-10-03T10:00:00Z"}'
 ```
 
 Batch ingestion sends an `events` array to `/api/v1/ingest/events/batch`:
 
 ```powershell
-curl.exe -X POST http://localhost:8000/api/v1/ingest/events/batch -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"events":[{"client_event_id":"event-124","schema_version":1,"provider":"anthropic","model":"claude-sonnet","feature":"assistant","status":"success","input_tokens":30,"output_tokens":9,"occurred_at":"2026-10-03T10:00:00Z"},{"client_event_id":"event-125","schema_version":1,"provider":"google","model":"gemini-flash","feature":"search","status":"success","input_tokens":20,"output_tokens":5,"occurred_at":"2026-10-03T10:01:00Z"}]}'
+curl.exe -X POST http://localhost:8000/api/v1/ingest/events/batch -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"events":[{"client_event_id":"event-124","schema_version":2,"provider":"anthropic","model":"claude-sonnet","feature":"assistant","status":"success","input_tokens":30,"output_tokens":9,"occurred_at":"2026-10-03T10:00:00Z"},{"client_event_id":"event-125","schema_version":2,"provider":"google","model":"gemini-flash","feature":"search","status":"success","input_tokens":20,"output_tokens":5,"occurred_at":"2026-10-03T10:01:00Z"}]}'
 ```
 
-Required event fields are `client_event_id`, `provider`, `model`, `feature`, `status`, `input_tokens`, `output_tokens`, and timezone-aware `occurred_at`; `schema_version` defaults to `1`. Optional metadata includes `customer_external_id`, `operation`, `cached_input_tokens`, `reasoning_tokens`, `provider_reported_total_tokens`, `duration_ms`, `provider_request_id`, `error_code`, and a bounded flat string map of `tags`. Status is `success`, `error`, `timeout`, or `cancelled`. Providers such as `openai`, `anthropic`, `google`, `azure_openai`, `aws_bedrock`, and `other` are supported as lowercase identifiers. Token components are stored independently; a total is never inferred by summing them.
+Required event fields are `client_event_id`, `provider`, `model`, `feature`, `status`, `input_tokens`, `output_tokens`, and timezone-aware `occurred_at`; `schema_version` defaults to `1`. Optional metadata includes `customer_external_id`, `operation`, `cached_input_tokens`, `reasoning_tokens`, `provider_reported_total_tokens`, `duration_ms`, `provider_request_id`, `error_code`, and a bounded flat string map of `tags`. Status is `success`, `error`, `timeout`, or `cancelled`. Providers such as `openai`, `anthropic`, `google`, `azure_openai`, `aws_bedrock`, and `other` are supported as lowercase identifiers. Use schema version 2 for normalized input/cache and output/reasoning subsets; a provider total is never inferred by blindly summing components.
 
 Retries with the same project, `client_event_id`, and normalized payload return the existing event (`200`). A changed payload under the same ID returns `409 duplicate_event_conflict`. Batches are transactional: any invalid or conflicting item rejects the entire batch. Identical repeated IDs inside one batch return one created result and subsequent existing results. The default limits are 100 events per batch, 1 MiB per body, events at most 365 days old or five minutes in the future, and 25 events per query page (maximum 100).
 
 View recent events in the project detail page or call `GET /api/v1/projects/{project_id}/events` with a dashboard session cookie. Filters include `provider`, `model`, `feature`, `customer_external_id`, `status`, `start_time`, and `end_time`; use the returned `next_cursor` for the next page. Event detail is `GET /api/v1/projects/{project_id}/events/{event_id}`. Both endpoints check organization membership.
 
 Ingestion accepts usage metadata only. Prompts, messages, response bodies, documents, embeddings, and other content fields are rejected and are not stored. Prefer an internal opaque customer ID rather than an email address in `customer_external_id`.
+
+## Model pricing and usage costs
+
+Recent Events now shows each event's cost status and auditable breakdown. Costs use the exact active provider/model/currency price effective at `occurred_at`, with no fuzzy model aliases. All money is calculated with Python `Decimal`, stored as PostgreSQL `NUMERIC(38,18)`, and returned as decimal strings. Unknown prices produce `unpriced` with a null total, never an assumed zero. Prices and costs are not fetched from provider websites at request time.
+
+No real provider prices are seeded. A trusted operator imports verified catalog records with provenance; organization owners cannot edit the shared global catalog. From `apps/api`:
+
+```powershell
+uv run python -m app.cli.pricing import C:/path/to/verified-prices.json
+uv run python -m app.cli.pricing import C:/path/to/new-prices.json --close-previous
+```
+
+For local experimentation, `../../docs/examples/prices.example.json` contains explicitly fictional prices for `example / text-demo-v1`. Importing it never configures prices for OpenAI, Anthropic, or other real providers. The migration requires PostgreSQL's `btree_gist` extension to prevent concurrent overlapping active price intervals.
+
+New integrations should explicitly send `schema_version: 2`: input includes cached input, output includes reasoning, and each subset must be no larger than its total. The provider-reported total is informational. Version 1 remains accepted with unchanged fingerprints/defaults; historical v1 events with nonzero cached/reasoning counters have ambiguous semantics and remain unsupported rather than being silently reinterpreted.
+
+`GET /api/v1/projects/{project_id}/events` and event detail include cost components, status/reason, calculation version/time, and the exact pricing record. `GET /api/v1/pricing/models` exposes the versioned catalog to authenticated dashboard users. `COST_CURRENCY` defaults to USD and never performs currency conversion.
+
+Changing the catalog and retrying ingestion do not rewrite saved costs. Owners/admins may explicitly recalculate up to 100 event IDs via `POST /api/v1/projects/{project_id}/events/recalculate` with body `{"event_ids":["EVENT_UUID"],"replace_calculated":false}` and a trusted Origin header. Existing calculated snapshots are skipped unless `replace_calculated` is explicitly true. A CLI equivalent supports operator backfills. Existing historical events receive an unpriced placeholder until selected for recalculation.
+
+See [model pricing and costs](docs/model-pricing.md) for the precise formulas, reasoning/cache rules, operator commands, version compatibility, downgrade safeguards, and unsupported dimensions. Prompts/responses remain rejected; only usage metadata and its cost are stored.
 
 ## Authentication and organizations
 
@@ -155,7 +176,7 @@ Stop local infrastructure without deleting data with `docker compose down`. The 
 - The login limiter is process-local and only a development safeguard. Production needs a shared distributed limiter at the edge or in later infrastructure.
 - Ingestion has body, batch, and field limits, but production still needs distributed rate limiting at an application gateway or a later shared service. No in-memory limiter is claimed as production safe.
 - OAuth, MFA, email verification, password reset, invitations, and email delivery are deferred authentication hardening work.
-- AI usage ingestion, provider integrations, SDK behavior, customers, cost/revenue calculations, Redis/Celery, billing, and analytics are outside Module 2 and remain deferred.
+- Provider integrations, SDKs, customers, revenue/profitability, Redis/Celery, billing, and analytics dashboards remain deferred. Costs support standard text tokens only; unsupported dimensions produce an unavailable cost with a reason.
 
 See [the authentication design](docs/authentication.md) and [the usage-ingestion design](docs/usage-ingestion.md) for lifecycle, tenant, privacy, and idempotency decisions.
 

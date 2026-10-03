@@ -22,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.event_cost import EventCost
     from app.models.project import Project
 
 
@@ -52,7 +53,12 @@ class UsageEvent(Base):
             "AND (duration_ms IS NULL OR duration_ms BETWEEN 0 AND 86400000)",
             name="ck_usage_events_nonnegative_counts",
         ),
-        CheckConstraint("schema_version = 1", name="ck_usage_events_schema_version"),
+        CheckConstraint("schema_version IN (1, 2)", name="ck_usage_events_schema_version"),
+        CheckConstraint(
+            "schema_version <> 2 OR (cached_input_tokens <= input_tokens "
+            "AND reasoning_tokens <= output_tokens)",
+            name="ck_usage_events_token_subsets",
+        ),
         Index("ix_usage_events_project_occurred", "project_id", "occurred_at", "id"),
         Index("ix_usage_events_organization_occurred", "organization_id", "occurred_at"),
         Index(
@@ -108,3 +114,9 @@ class UsageEvent(Base):
     )
 
     project: Mapped[Project] = relationship(back_populates="events")
+    cost: Mapped[EventCost | None] = relationship(
+        back_populates="usage_event",
+        uselist=False,
+        lazy="raise",
+        passive_deletes=True,
+    )

@@ -3,6 +3,31 @@ import { MembershipRole, request } from "@/lib/api";
 export type ProjectEnvironment = "development" | "staging" | "production";
 export type EventStatus = "success" | "error" | "timeout" | "cancelled";
 
+export interface EventCost {
+  id: string;
+  model_price_id: string | null;
+  status: "calculated" | "unpriced" | "unsupported" | "invalid";
+  currency: string | null;
+  uncached_input_tokens: number;
+  cached_input_tokens: number;
+  regular_output_tokens: number;
+  reasoning_tokens: number;
+  uncached_input_cost: string | null;
+  cached_input_cost: string | null;
+  output_cost: string | null;
+  reasoning_cost: string | null;
+  total_cost: string | null;
+  reason_code: string | null;
+  reason_detail: string | null;
+  calculation_version: string;
+  calculated_at: string;
+  model_price: {
+    catalog_version: string;
+    source_name: string;
+    reasoning_billing_mode: string;
+  } | null;
+}
+
 export interface Project {
   id: string;
   organization_id: string;
@@ -40,6 +65,7 @@ export interface UsageEvent {
   input_tokens: number;
   output_tokens: number;
   duration_ms: number | null;
+  cost?: EventCost | null;
 }
 
 export interface EventFilters {

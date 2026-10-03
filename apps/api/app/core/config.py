@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     event_max_page_size: int = Field(default=100, ge=1, le=500)
     event_max_query_days: int = Field(default=366, ge=1, le=3650)
     api_key_last_used_update_seconds: int = Field(default=300, ge=0, le=86400)
+    cost_currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
 
     @field_validator("session_cookie_domain", mode="before")
     @classmethod

@@ -48,7 +48,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
           Send usage metadata only. Replace the key and timestamp; do not include prompts or model responses.
         </p>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-ink p-5 text-sm text-white">
-          <code>{`curl -X POST http://localhost:8000/api/v1/ingest/events -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"client_event_id":"event-123","schema_version":1,"provider":"openai","model":"gpt-4o-mini","feature":"assistant","status":"success","input_tokens":42,"output_tokens":12,"occurred_at":"CURRENT_UTC_TIMESTAMP"}'`}</code>
+          <code>{`curl -X POST http://localhost:8000/api/v1/ingest/events -H "Authorization: Bearer YOUR_PROJECT_API_KEY" -H "Content-Type: application/json" -d '{"client_event_id":"event-123","schema_version":2,"provider":"openai","model":"gpt-4o-mini","feature":"assistant","status":"success","input_tokens":42,"output_tokens":12,"occurred_at":"CURRENT_UTC_TIMESTAMP"}'`}</code>
         </pre>
       </section>
     </div></main>

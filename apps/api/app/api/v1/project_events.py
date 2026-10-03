@@ -3,16 +3,47 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
-from app.api.dependencies import DatabaseSession, get_request_settings
-from app.api.project_dependencies import ProjectMember
+from app.api.dependencies import DatabaseSession, enforce_trusted_origin, get_request_settings
+from app.api.project_dependencies import ProjectAdmin, ProjectMember
 from app.models.usage_event import EventStatus
 from app.schemas.common import ApiResponse, ErrorResponse
+from app.schemas.pricing import RecalculateCosts, RecalculateData
 from app.schemas.usage_event import EventData, EventListData
+from app.services.costs import recalculate_costs
 from app.services.usage_events import get_event, query_events
 
 router = APIRouter(prefix="/projects/{project_id}/events", tags=["usage events"])
+
+
+@router.post(
+    "/recalculate",
+    response_model=ApiResponse[RecalculateData],
+    dependencies=[Depends(enforce_trusted_origin)],
+    summary="Explicitly recalculate up to 100 project events; preserve calculated costs by default",
+)
+async def recalculate(
+    project_id: uuid.UUID,
+    payload: RecalculateCosts,
+    request: Request,
+    context: ProjectAdmin,
+    db: DatabaseSession,
+) -> ApiResponse[RecalculateData]:
+    costs, updated = await recalculate_costs(
+        db,
+        project_id=context.project.id,
+        event_ids=payload.event_ids,
+        currency=get_request_settings(request).cost_currency,
+        replace_calculated=payload.replace_calculated,
+    )
+    return ApiResponse(
+        data=RecalculateData(
+            costs=costs,
+            updated_count=updated,
+            skipped_count=len(costs) - updated,
+        )
+    )
 
 
 @router.get(

@@ -258,7 +258,7 @@ async def test_single_ingestion_idempotency_and_privacy(
     assert stored is not None
     assert str(stored.organization_id) == org_id
     assert str(stored.project_id) == project["id"]
-    assert not hasattr(stored, "cost")
+    assert "total_cost" not in UsageEvent.__table__.columns
     assert stored.provider_reported_total_tokens == 54
 
 

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { EventFilters, EventStatus, UsageEvent, projectsApi } from "@/lib/projects-api";
+import { EventCostCell } from "@/components/event-cost-cell";
 
 export function RecentEvents({ projectId }: { projectId: string }) {
   const [events, setEvents] = useState<UsageEvent[]>([]);
@@ -60,7 +61,7 @@ export function RecentEvents({ projectId }: { projectId: string }) {
         <button type="submit" disabled={loading} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Apply filters</button>
       </form>
       {error && <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-      {loading ? <p className="mt-6 text-sm text-ink/60">Loading events…</p> : events.length === 0 ? <p className="mt-6 text-sm text-ink/60">No events found.</p> : <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="border-b border-ink/10 text-xs uppercase text-ink/45"><tr><th className="py-3">Occurred</th><th>Provider</th><th>Model</th><th>Feature</th><th>Customer ID</th><th>Status</th><th>Input</th><th>Output</th><th>Duration</th></tr></thead><tbody>{events.map((item) => <tr key={item.id} className="border-b border-ink/10 last:border-0"><td className="py-3">{new Date(item.occurred_at).toLocaleString()}</td><td>{item.provider}</td><td>{item.model}</td><td>{item.feature}</td><td>{item.customer_external_id ?? "—"}</td><td className="capitalize">{item.status}</td><td>{item.input_tokens}</td><td>{item.output_tokens}</td><td>{item.duration_ms == null ? "—" : `${item.duration_ms} ms`}</td></tr>)}</tbody></table></div>}
+      {loading ? <p className="mt-6 text-sm text-ink/60">Loading events…</p> : events.length === 0 ? <p className="mt-6 text-sm text-ink/60">No events found.</p> : <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-ink/10 text-xs uppercase text-ink/45"><tr><th className="py-3">Occurred</th><th>Provider</th><th>Model</th><th>Feature</th><th>Customer ID</th><th>Status</th><th>Input</th><th>Output</th><th>Duration</th><th>Cost</th></tr></thead><tbody>{events.map((item) => <tr key={item.id} className="border-b border-ink/10 last:border-0"><td className="py-3">{new Date(item.occurred_at).toLocaleString()}</td><td>{item.provider}</td><td>{item.model}</td><td>{item.feature}</td><td>{item.customer_external_id ?? "—"}</td><td className="capitalize">{item.status}</td><td>{item.input_tokens}</td><td>{item.output_tokens}</td><td>{item.duration_ms == null ? "—" : `${item.duration_ms} ms`}</td><td><EventCostCell cost={item.cost} /></td></tr>)}</tbody></table></div>}
       {nextCursor && !loading && <button type="button" onClick={() => void load(filters, nextCursor)} className="mt-5 rounded-xl border border-ink/20 px-4 py-2 text-sm font-semibold">Next page</button>}
     </section>
   );
