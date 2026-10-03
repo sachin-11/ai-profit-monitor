@@ -6,10 +6,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.router import router as v1_router
 from app.db.session import get_database_session
 from app.schemas.status import HealthData, ReadyData, StatusResponse
 
 router = APIRouter()
+router.include_router(v1_router)
 logger = logging.getLogger(__name__)
 
 

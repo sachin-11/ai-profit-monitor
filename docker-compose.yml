@@ -19,6 +19,67 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_NAME: ${APP_NAME:-AI Profit Monitor API}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ai_profit_monitor}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-ai_profit_monitor}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ai_profit_monitor_session}
+      SESSION_LIFETIME_SECONDS: ${SESSION_LIFETIME_SECONDS:-604800}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
+      SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:-}
+      SESSION_LAST_USED_UPDATE_SECONDS: ${SESSION_LAST_USED_UPDATE_SECONDS:-300}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-12}
+      LOGIN_RATE_LIMIT_ATTEMPTS: ${LOGIN_RATE_LIMIT_ATTEMPTS:-10}
+      LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:-60}
+      INGESTION_MAX_BATCH_SIZE: ${INGESTION_MAX_BATCH_SIZE:-100}
+      INGESTION_MAX_BODY_BYTES: ${INGESTION_MAX_BODY_BYTES:-1048576}
+      EVENT_MAX_FUTURE_SECONDS: ${EVENT_MAX_FUTURE_SECONDS:-300}
+      EVENT_MAX_AGE_DAYS: ${EVENT_MAX_AGE_DAYS:-365}
+      EVENT_PAGE_SIZE: ${EVENT_PAGE_SIZE:-25}
+      EVENT_MAX_PAGE_SIZE: ${EVENT_MAX_PAGE_SIZE:-100}
+      EVENT_MAX_QUERY_DAYS: ${EVENT_MAX_QUERY_DAYS:-366}
+      API_KEY_LAST_USED_UPDATE_SECONDS: ${API_KEY_LAST_USED_UPDATE_SECONDS:-300}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 

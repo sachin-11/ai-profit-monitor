@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { StatusDashboard } from "@/components/status-dashboard";
 
 export default function Home() {
@@ -19,6 +21,10 @@ export default function Home() {
             <div className="mt-10 inline-flex w-fit items-center gap-2 rounded-full bg-mint/20 px-4 py-2 text-sm font-medium text-ink">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               Foundation environment
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/register" className="rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">Create account</Link>
+              <Link href="/login" className="rounded-xl border border-ink/15 px-5 py-3 text-sm font-semibold text-ink">Sign in</Link>
             </div>
           </div>
           <StatusDashboard />
